@@ -60,9 +60,13 @@ export async function POST(req: NextRequest) {
       .eq('type', 'task')
       .neq('status', 'completed')
 
-    const keywords = intent.task_keywords.toLowerCase().split(' ')
+    const rawKeywords = intent.task_keywords.toLowerCase().split(' ')
+    // filter out stop words, keep meaningful keywords (3+ chars)
+    const stopWords = new Set(['done', 'with', 'the', 'and', 'for', 'my', 'its', 'its', 'a', 'an', 'is', 'are', 'was', 'i', 'on', 'in', 'at', 'to', 'of', 'it'])
+    const keywords = rawKeywords.filter(kw => kw.length >= 3 && !stopWords.has(kw))
+    const searchTerms = keywords.length > 0 ? keywords : rawKeywords.filter(kw => kw.length >= 3)
     const matched = nodes?.find(n =>
-      keywords.some(kw => n.content.toLowerCase().includes(kw))
+      searchTerms.some(kw => n.content.toLowerCase().includes(kw))
     )
 
     if (matched) {
