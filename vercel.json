@@ -3,6 +3,14 @@
     {
       "path": "/api/brief?secret=aethr_cron_2026",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/checkin?secret=aethr_cron_2026&type=evening",
+      "schedule": "30 14 * * *"
+    },
+    {
+      "path": "/api/checkin?secret=aethr_cron_2026&type=weekly",
+      "schedule": "0 4 * * 0"
     }
   ]
 }
