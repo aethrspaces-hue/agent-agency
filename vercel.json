@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/brief?secret=aethr_cron_2026",
+      "schedule": "30 2 * * *"
+    }
+  ]
+}
