@@ -24,19 +24,21 @@ export async function GET(req: NextRequest) {
 
   const tokens = await res.json()
 
-  // Store tokens as a node in the graph
-  await supabase.from('nodes').upsert({
+  // Delete existing token node then insert fresh
+  await supabase.from('nodes').delete().eq('content', 'google-tokens').eq('graph', 'priya-personal')
+
+  await supabase.from('nodes').insert({
     graph: 'priya-personal',
     type: 'session',
     content: 'google-tokens',
     metadata: {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
-      expires_at: Date.now() + tokens.expires_in * 1000,
+      expires_at: Date.now() + (tokens.expires_in ?? 3600) * 1000,
     },
     status: 'active',
     priority: 0,
-  }, { onConflict: 'content' })
+  })
 
   return NextResponse.redirect('https://agent-agency-gamma.vercel.app?connected=google')
 }
