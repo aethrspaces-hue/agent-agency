@@ -90,6 +90,36 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // PARK TASK
+  if (intent.type === 'park_task') {
+    const { data: nodes } = await supabase
+      .from('nodes')
+      .select('*')
+      .eq('graph', 'priya-personal')
+      .eq('type', 'task')
+      .neq('status', 'completed')
+
+    const rawKeywords = intent.task_keywords.toLowerCase().split(' ')
+    const stopWords = new Set(['done', 'with', 'the', 'and', 'for', 'my', 'its', 'a', 'an', 'is', 'are', 'was', 'i', 'on', 'in', 'at', 'to', 'of', 'it'])
+    const keywords = rawKeywords.filter(kw => kw.length >= 3 && !stopWords.has(kw))
+    const searchTerms = keywords.length > 0 ? keywords : rawKeywords.filter(kw => kw.length >= 3)
+    const matched = nodes?.find(n =>
+      searchTerms.some(kw => n.content.toLowerCase().includes(kw))
+    )
+
+    if (matched) {
+      await supabase
+        .from('nodes')
+        .update({ status: 'parked', updated_at: new Date().toISOString() })
+        .eq('id', matched.id)
+
+      await sendTelegramMessage(`🅿️ "${matched.content}" parked — removed from your active list.\n\nFocus on your job action + DSA. That's it.`)
+    } else {
+      await sendTelegramMessage(`Couldn't find a task matching "${intent.task_keywords}". Type *show tasks* to see your list.`)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
   // ADD TASK
   if (intent.type === 'add_task') {
     await supabase.from('nodes').insert({
@@ -110,7 +140,7 @@ export async function POST(req: NextRequest) {
       .select('*')
       .eq('graph', 'priya-personal')
       .eq('type', 'task')
-      .neq('status', 'completed')
+      .not('status', 'in', '("completed","parked")')
       .order('priority')
 
     if (!nodes?.length) {

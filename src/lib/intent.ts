@@ -4,6 +4,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export type Intent =
   | { type: 'complete_task'; task_keywords: string }
+  | { type: 'park_task'; task_keywords: string }
   | { type: 'add_task'; content: string }
   | { type: 'show_tasks' }
   | { type: 'chat'; message: string }
@@ -18,6 +19,7 @@ export async function detectIntent(message: string): Promise<Intent> {
 
 Intents:
 - complete_task: user says they finished/done/completed something. Extract keywords describing what task.
+- park_task: user wants to remove, drop, forget, park, ignore, cancel, deprioritize a task. Extract keywords describing which task.
 - add_task: user wants to add a new task. Extract the task content.
 - show_tasks: user wants to see their current tasks.
 - chat: anything else — general conversation, questions, etc.
@@ -25,6 +27,10 @@ Intents:
 Examples:
 "done with DSA today" -> {"type":"complete_task","task_keywords":"DSA"}
 "I finished the landing page" -> {"type":"complete_task","task_keywords":"landing page"}
+"forget about pitch deck completely" -> {"type":"park_task","task_keywords":"pitch deck"}
+"placepro is parked for now" -> {"type":"park_task","task_keywords":"placepro"}
+"drop the cafe task" -> {"type":"park_task","task_keywords":"cafe"}
+"remove typescript from my list" -> {"type":"park_task","task_keywords":"typescript"}
 "add task: review pitch deck" -> {"type":"add_task","content":"review pitch deck"}
 "add review pitch deck to my tasks" -> {"type":"add_task","content":"review pitch deck"}
 "what are my tasks?" -> {"type":"show_tasks"}
