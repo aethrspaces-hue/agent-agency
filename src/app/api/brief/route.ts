@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import Groq from 'groq-sdk'
 import { sendTelegramMessage } from '../notify/route'
+import { getTodayEvents, getImportantEmails } from '@/lib/google'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const MCP_URL = 'https://aethr-mcp.aethr-spaces.workers.dev'
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get('secret')
@@ -15,25 +12,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const [{ data: nodes }, { data: edges }] = await Promise.all([
-    supabase.from('nodes').select('*').order('priority'),
-    supabase.from('edges').select('*'),
+  const [personalRes, aethrRes, events, emails] = await Promise.all([
+    fetch(`${MCP_URL}/context?graph=priya-personal`).then(r => r.json()),
+    fetch(`${MCP_URL}/context?graph=aethr-shared`).then(r => r.json()),
+    getTodayEvents(),
+    getImportantEmails(),
   ])
-
-  const personalNodes = nodes?.filter(n => n.graph === 'priya-personal') ?? []
-  const aethrNodes = nodes?.filter(n => n.graph === 'aethr-shared') ?? []
-
-  const personalTasks = personalNodes.filter(n => n.type === 'task' && n.status !== 'completed')
-  const aethrTasks = aethrNodes.filter(n => n.type === 'task' && n.status !== 'completed')
 
   const prompt = `
 Generate a short, energetic morning brief for Priya.
 
-Personal active tasks: ${personalTasks.map(t => t.content).join(', ')}
-Aethr active tasks: ${aethrTasks.map(t => t.content).join(', ')}
+PERSONAL CONTEXT:
+${personalRes.summary}
 
-Format it exactly like this:
-Good morning Priya! Here's your focus for today:
+AETHR CONTEXT:
+${aethrRes.summary}
+
+TODAY'S MEETINGS:
+${events}
+
+IMPORTANT UNREAD EMAILS:
+${emails}
+
+Format it exactly like this (use Telegram markdown):
+Good morning Priya! ☀️
 
 🎯 *Top priority:* [single most important task]
 
@@ -42,21 +44,26 @@ Good morning Priya! Here's your focus for today:
 2. [task]
 3. [task]
 
+📅 *Meetings today:*
+[list meetings or "No meetings today"]
+
+📬 *Check these emails:*
+[list important emails or "Inbox clear!"]
+
 💡 *Remember:* [one motivating sentence connecting today's work to her job shift goal]
 
 Ready? Let's go! 🚀
 
-Keep it under 100 words. Be specific, not generic.
+Keep it under 150 words. Be specific.
 `.trim()
 
   const completion = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     messages: [{ role: 'user', content: prompt }],
-    max_tokens: 200,
+    max_tokens: 300,
   })
 
   const brief = completion.choices[0]?.message?.content ?? 'Good morning Priya! Time to get to work!'
-
   await sendTelegramMessage(brief)
 
   return NextResponse.json({ ok: true, brief })
