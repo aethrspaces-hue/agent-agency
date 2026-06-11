@@ -23,11 +23,12 @@ export async function GET(req: NextRequest) {
   })
 
   const tokens = await res.json()
+  if (tokens.error) return NextResponse.json({ error: tokens.error, description: tokens.error_description }, { status: 400 })
 
   // Delete existing token node then insert fresh
   await supabase.from('nodes').delete().eq('content', 'google-tokens').eq('graph', 'priya-personal')
 
-  await supabase.from('nodes').insert({
+  const { error: insertError } = await supabase.from('nodes').insert({
     graph: 'priya-personal',
     type: 'session',
     content: 'google-tokens',
@@ -39,6 +40,8 @@ export async function GET(req: NextRequest) {
     status: 'active',
     priority: 0,
   })
+
+  if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
 
   return NextResponse.redirect('https://agent-agency-gamma.vercel.app?connected=google')
 }
