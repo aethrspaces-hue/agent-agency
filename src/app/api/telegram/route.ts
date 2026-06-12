@@ -70,10 +70,11 @@ export async function POST(req: NextRequest) {
     )
 
     if (matched) {
-      await supabase
-        .from('nodes')
-        .update({ status: 'completed', updated_at: new Date().toISOString() })
-        .eq('id', matched.id)
+      await fetch(`${MCP_URL}/transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: matched.id, agent: 'telegram-agent', to_status: 'completed' }),
+      })
 
       const nextRes = await fetch(`${MCP_URL}/next-task?graph=priya-personal`)
       const next = await nextRes.json()
@@ -108,10 +109,11 @@ export async function POST(req: NextRequest) {
     )
 
     if (matched) {
-      await supabase
-        .from('nodes')
-        .update({ status: 'parked', updated_at: new Date().toISOString() })
-        .eq('id', matched.id)
+      await fetch(`${MCP_URL}/transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: matched.id, agent: 'telegram-agent', to_status: 'parked' }),
+      })
 
       await sendTelegramMessage(`🅿️ "${matched.content}" parked — removed from your active list.\n\nFocus on your job action + DSA. That's it.`)
     } else {
@@ -128,6 +130,8 @@ export async function POST(req: NextRequest) {
       content: intent.content,
       status: 'active',
       priority: 99,
+      created_by: 'priya',
+      confidence: 1.0,
     })
     await sendTelegramMessage(`✅ Added task: *${intent.content}*\n\nFinish your current task first, then I'll remind you about this.`)
     return NextResponse.json({ ok: true })
