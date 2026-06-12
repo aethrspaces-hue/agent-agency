@@ -49,6 +49,43 @@ export async function POST(req: NextRequest) {
   const chatId = message.chat.id.toString()
   if (chatId !== process.env.TELEGRAM_CHAT_ID) return NextResponse.json({ ok: true })
 
+  // approve/reject lead commands — human-only transitions, no LLM needed
+  const leadCmd = userText.match(/^(approve|reject)\s+([0-9a-f-]{36})/i)
+  if (leadCmd) {
+    const to_status = leadCmd[1].toLowerCase() === 'approve' ? 'approved' : 'rejected'
+    const res = await fetch(`${MCP_URL}/transition`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: leadCmd[2], agent: 'priya', to_status }),
+    })
+    const result = await res.json()
+    if (result.ok) {
+      await sendTelegramMessage(
+        to_status === 'approved'
+          ? `✅ Approved: *${result.node.content}*\n\nApply/send the message, then reply *contacted ${leadCmd[2]}* and I'll track the follow-up.\n${result.node.source_url ?? ''}`
+          : `🗑️ Rejected: ${result.node.content}`
+      )
+    } else {
+      await sendTelegramMessage(`⚠️ Couldn't update: ${result.error}`)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  // contacted <id> — mark lead as contacted, chaser takes over follow-ups
+  const contactedCmd = userText.match(/^contacted\s+([0-9a-f-]{36})/i)
+  if (contactedCmd) {
+    const res = await fetch(`${MCP_URL}/transition`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: contactedCmd[1], agent: 'priya', to_status: 'contacted' }),
+    })
+    const result = await res.json()
+    await sendTelegramMessage(result.ok
+      ? `📬 Marked contacted: *${result.node.content}* — I'll nudge you if no reply in 4 days.`
+      : `⚠️ ${result.error}`)
+    return NextResponse.json({ ok: true })
+  }
+
   const intent = await detectIntent(userText)
 
   // COMPLETE TASK
